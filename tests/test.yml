@@ -3,18 +3,26 @@
 
 
 - hosts: localhost
-  remote_user: root
-  roles:
-    - ansible-haproxy
+  become: yes
+  tasks:
+      # errors dir must be set as an include_role parameter to override the value loaded from the include_vars task
+    - include_role:
+        name: ansible-haproxy
+      vars:
+        haproxy_errors_directory: /opt/rh/rh-haproxy18/root/usr/share/haproxy
 
   vars:
+    haproxy_package: rh-haproxy18
+    haproxy_service: rh-haproxy18-haproxy
+    haproxy_config: /etc/opt/rh/rh-haproxy18/haproxy/haproxy.cfg
+    haproxy_global_chroot: /var/opt/rh/rh-haproxy18/lib/haproxy
+    haproxy_global_pidfile: /var/run/rh-haproxy18-haproxy.pid
+
     # Frontend
     haproxy_frontend:
       - dashboard_cluster:
-          binds_ssl:
-            - :443 ssl crt /etc/ssl/uoi.io/uoi.io.pem no-sslv3
           reqadds:
-            - X-Forwarded-Proto:\ https
+            - X-Forwarded-Proto https
           default_backend: dashboard_backend
           logs:
             - 127.0.0.1 local0 debug
@@ -48,14 +56,12 @@
 
     # Listen
     haproxy_listen:
-      - dashboard_cluster:
+      - dashboard_cluster_listen:
           mode: http
           description: Horizon Dashboard
           balance: source
           binds:
             - 10.0.0.100:512
-          binds_ssl:
-            - :443 ssl crt /etc/ssl/uoi.io/uoi.io.pem no-sslv3
           options: [ tcpka, httpchk, tcplog ]
           bind_process:
             - 1
@@ -68,8 +74,6 @@
             - ctrl03 10.0.0.69:80 check inter 2000 rise 2 fall 5
 
       - neutron_api_cluster:
-          binds_ssl:
-            - 10.0.0.100:9696 {{ haproxy_ssl }}
           options: [ tcpka, httpchk, tcplog ]
           bind_process: [ 2, 3, 4, 5, 6, 7 ]
           balance: source
